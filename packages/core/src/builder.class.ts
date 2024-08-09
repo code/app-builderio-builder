@@ -1077,44 +1077,32 @@ export class Builder {
     }
   }
 
+  private static serializeComponentInfo(info: any) {
+    const serializeFn = (fnValue: Function) => {
+      const fnStr = fnValue.toString().trim();
+
+      // we need to account for a few different fn syntaxes:
+      // 1. `function name(args) => {code}`
+      // 2. `name(args) => {code}`
+      // 3. `(args) => {}`
+      const appendFunction = !fnStr.startsWith('function') && !fnStr.startsWith('(');
+
+      return `return (${appendFunction ? 'function ' : ''}${fnStr}).apply(this, arguments)`;
+    };
+
+    return JSON.parse(
+      JSON.stringify(info, (key, value) => {
+        if (typeof value === 'function') {
+          return serializeFn(value);
+        }
+        return value;
+      })
+    );
+  }
+
   private static prepareComponentSpecToSend(spec: Component): Component {
     return {
-      ...spec,
-      ...(spec.inputs && {
-        inputs: spec.inputs.map((input: any) => {
-          // TODO: do for nexted fields too
-          // TODO: probably just convert all functions, not just
-          // TODO: put this in input hooks: { onChange: ..., showIf: ... }
-          const keysToConvertFnToString = ['onChange', 'showIf'];
-
-          for (const key of keysToConvertFnToString) {
-            if (input[key] && typeof input[key] === 'function') {
-              const fn = input[key];
-              input = {
-                ...input,
-                [key]: `return (${fn.toString()}).apply(this, arguments)`,
-              };
-            }
-          }
-
-          return input;
-        }),
-      }),
-      hooks: Object.keys(spec.hooks || {}).reduce(
-        (memo, key) => {
-          const value = spec.hooks && spec.hooks[key];
-          if (!value) {
-            return memo;
-          }
-          if (typeof value === 'string') {
-            memo[key] = value;
-          } else {
-            memo[key] = `return (${value.toString()}).apply(this, arguments)`;
-          }
-          return memo;
-        },
-        {} as { [key: string]: string }
-      ),
+      ...this.serializeComponentInfo(spec),
       class: undefined,
     };
   }
@@ -1725,14 +1713,18 @@ export class Builder {
 
   setTestsFromUrl() {
     const search = this.getLocation().search;
-    const params = QueryString.parseDeep(this.modifySearch(search || '').substr(1));
-    const tests = params.builder && params.builder.tests;
-    if (tests && typeof tests === 'object') {
-      for (const key in tests) {
-        if (tests.hasOwnProperty(key)) {
-          this.setTestCookie(key, tests[key]);
+    try {
+      const params = QueryString.parseDeep(this.modifySearch(search || '').substr(1));
+      const tests = params.builder && params.builder.tests;
+      if (tests && typeof tests === 'object') {
+        for (const key in tests) {
+          if (tests.hasOwnProperty(key)) {
+            this.setTestCookie(key, tests[key]);
+          }
         }
       }
+    } catch (e) {
+      console.debug('Error parsing tests from URL', e);
     }
   }
 
@@ -1753,67 +1745,71 @@ export class Builder {
 
   getOverridesFromQueryString() {
     const location = this.getLocation();
-    const params = QueryString.parseDeep(this.modifySearch(location.search || '').substr(1));
-    const { builder } = params;
-    if (builder) {
-      const {
-        userAttributes,
-        overrides,
-        env,
-        host,
-        api,
-        cachebust,
-        noCache,
-        preview,
-        editing,
-        frameEditing,
-        options,
-        params: overrideParams,
-      } = builder;
+    try {
+      const params = QueryString.parseDeep(this.modifySearch(location.search || '').substr(1));
+      const { builder } = params;
+      if (builder) {
+        const {
+          userAttributes,
+          overrides,
+          env,
+          host,
+          api,
+          cachebust,
+          noCache,
+          preview,
+          editing,
+          frameEditing,
+          options,
+          params: overrideParams,
+        } = builder;
 
-      if (userAttributes) {
-        this.setUserAttributes(userAttributes);
-      }
+        if (userAttributes) {
+          this.setUserAttributes(userAttributes);
+        }
 
-      if (options) {
-        // picking only locale, includeRefs, and enrich for now
-        this.queryOptions = {
-          ...(options.locale && { locale: options.locale }),
-          ...(options.includeRefs && { includeRefs: options.includeRefs }),
-          ...(options.enrich && { enrich: options.enrich }),
-        };
-      }
+        if (options) {
+          // picking only locale, includeRefs, and enrich for now
+          this.queryOptions = {
+            ...(options.locale && { locale: options.locale }),
+            ...(options.includeRefs && { includeRefs: options.includeRefs }),
+            ...(options.enrich && { enrich: options.enrich }),
+          };
+        }
 
-      if (overrides) {
-        this.overrides = overrides;
-      }
+        if (overrides) {
+          this.overrides = overrides;
+        }
 
-      if (validEnvList.indexOf(env || api) > -1) {
-        this.env = env || api;
-      }
+        if (validEnvList.indexOf(env || api) > -1) {
+          this.env = env || api;
+        }
 
-      if (Builder.isEditing) {
-        const editingModel = frameEditing || editing || preview;
-        if (editingModel && editingModel !== 'true') {
-          this.editingModel = editingModel;
+        if (Builder.isEditing) {
+          const editingModel = frameEditing || editing || preview;
+          if (editingModel && editingModel !== 'true') {
+            this.editingModel = editingModel;
+          }
+        }
+
+        if (cachebust) {
+          this.cachebust = true;
+        }
+
+        if (noCache) {
+          this.noCache = true;
+        }
+
+        if (preview) {
+          this.preview = true;
+        }
+
+        if (params) {
+          this.overrideParams = overrideParams;
         }
       }
-
-      if (cachebust) {
-        this.cachebust = true;
-      }
-
-      if (noCache) {
-        this.noCache = true;
-      }
-
-      if (preview) {
-        this.preview = true;
-      }
-
-      if (params) {
-        this.overrideParams = overrideParams;
-      }
+    } catch (e) {
+      console.debug('Error parsing overrides from URL', e);
     }
   }
 
@@ -2426,7 +2422,7 @@ export class Builder {
     }
     // TODO: merge in the attribute from query string ones
     // TODO: make this an option per component/request
-    queryParams.userAttributes = JSON.stringify(userAttributes);
+    queryParams.userAttributes = userAttributes;
 
     if (!usePastQueue && !useQueue) {
       this.priorContentQueue = queue;

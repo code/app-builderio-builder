@@ -1,5 +1,38 @@
 # @builder.io/sdk-angular
 
+## 0.2.6
+
+### Patch Changes
+
+- 22a3865: Fix: Symbol infinite re-render and editor overlay not showing up.
+- a6c453f: Fix: support Visual Editing for Interactive Elements
+
+## 0.2.5
+
+### Patch Changes
+
+- 53d3cf9: Fix: State inits in Angular which fixes repeat elements, show-if and hide-if and Columns
+- 11e118c: Fix: serialize all functions within registered component info.
+
+## 0.2.4
+
+### Patch Changes
+
+- 48ee285: Feat: optimise DOM updates with `trackBy` in angular
+
+## 0.2.3
+
+### Patch Changes
+
+- 4ee499e: Fix: Image block: remove redundant `srcset` for SVG images
+- 14da62f: Fix: restrict custom components to the models that get passed in `models`
+
+## 0.2.2
+
+### Patch Changes
+
+- bdd3762: Fix: `onInit` hook to run initialisations (converted to `ngOnInit`) on both server and client and move `onMount` and `onUpdate` hooks to only run on browser (converted to `ngOnInit` and `ngOnChanges` respectively with browser check)
+
 ## 0.2.1
 
 ### Patch Changes

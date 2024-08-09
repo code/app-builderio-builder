@@ -1,5 +1,18 @@
 # Builder.io Qwik SDK Changelog (@builder.io/sdk-qwik)
 
+## 0.16.3
+
+### Patch Changes
+
+- 11e118c: Fix: serialize all functions within registered component info.
+
+## 0.16.2
+
+### Patch Changes
+
+- 4ee499e: Fix: Image block: remove redundant `srcset` for SVG images
+- 14da62f: Fix: restrict custom components to the models that get passed in `models`
+
 ## 0.16.1
 
 ### Patch Changes

@@ -38,16 +38,15 @@ export default function AnnouncementBar() {
 
   return (
     <>
-      {content ? (
+      {/* Announcement Bar goes here */}
+      {content && (
         <Content
           content={content}
           model={MODEL_NAME}
           apiKey={BUILDER_API_KEY}
         />
-      ) : (
-        <div>Announcement Bar not Found</div>
       )}
-      {/* Your content coming from your app (or also Builder) */}
+      {/* content coming from your app (or also Builder) */}
       <div>The rest of your page goes here</div>
     </>
   );

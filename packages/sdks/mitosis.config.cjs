@@ -209,7 +209,49 @@ const filterActionAttrBindings = (json, item) => {
   });
 };
 
+/**
+ * @type {Plugin}
+ */
+const ANGULAR_ADD_UNUSED_PROP_TYPES = () => ({
+  json: {
+    post: (json) => {
+      if (json.name === 'BuilderImage' || json.name === 'BuilderSymbol') {
+        json.hooks.onMount = json.hooks.onMount.filter(
+          (hook) =>
+            !hook.code.includes(
+              '/** this is a hack to include the input in angular */'
+            )
+        );
+      }
+      return json;
+    },
+  },
+});
+
+/**
+ * @type {Plugin}
+ * We explicitly add the builder-id attribute to the symbol component for Angular,
+ * because mitosis doesn't support spreading `props.attributes` yet.
+ *
+ */
+const ANGULAR_FIX_SYMBOL_BUILDER_ID_ATTRIBUTE = () => ({
+  json: {
+    post: (json) => {
+      if (json.name === 'BuilderSymbol') {
+        json.children[0].bindings['builder-id'] = {
+          code: "props.attributes['builder-id']",
+          type: 'single',
+        };
+      }
+      return json;
+    },
+  },
+});
+
 // for fixing circular dependencies
+/**
+ * @type {Plugin}
+ */
 const ANGULAR_FIX_CIRCULAR_DEPENDENCIES_OF_COMPONENTS = () => ({
   code: {
     post: (code) => {
@@ -235,41 +277,48 @@ const ANGULAR_OVERRIDE_COMPONENT_REF_PLUGIN = () => ({
   code: {
     post: (code) => {
       if (code.includes('component-ref, ComponentRef')) {
-        // onInit we check for this.isInteractive as its available at that time
-        // and set the Wrapper to InteractiveElement or componentRef
-        code = code.replace(
-          'ngOnInit() {\n',
-          `ngOnInit() {\n  this.Wrapper = this.isInteractive ? InteractiveElement : this.componentRef;\n`
+        code = code
+          .replace(
+            '<ng-container *ngFor="let child of blockChildren; trackBy: trackByChild0">',
+            '<ng-container *ngIf="componentRef">\n<ng-container *ngFor="let child of blockChildren; trackBy: trackByChild0">'
+          )
+          .replace('</ng-container>', '</ng-container>\n</ng-container>');
+        const ngOnChangesIndex = code.indexOf(
+          'ngOnChanges(changes: SimpleChanges) {'
         );
-        // we need to wrap the blockChildren in a ngIf to prevent rendering when componentRef is undefined
-        code = code.replace(
-          '<ng-container *ngFor="let child of blockChildren">',
-          '<ng-container *ngIf="componentRef">\n<ng-container *ngFor="let child of blockChildren">'
-        );
-        code = code.replace(
-          '</ng-container>',
-          '</ng-container>\n</ng-container>'
-        );
+
+        if (ngOnChangesIndex > -1) {
+          code = code.replace(
+            'ngOnChanges(changes: SimpleChanges) {',
+            // Add a check to see if the componentOptions have changed
+            `ngOnChanges(changes: SimpleChanges) {
+                if (changes.componentOptions) {
+                  let foundChange = false;
+                  for (const key in changes.componentOptions.previousValue) {
+                    if (changes.componentOptions.previousValue[key] !== changes.componentOptions.currentValue[key]) {
+                      foundChange = true;
+                      break;
+                    }
+                  }
+                  if (!foundChange) {
+                    return;
+                  }
+                }`
+          );
+        } else {
+          throw new Error('ngOnChanges not found in component-ref');
+        }
       }
       return code;
     },
   },
 });
 
-const ANGULAR_BLOCKS_WRAPPER_MERGED_INPUT_REACTIVITY_PLUGIN = () => ({
+const ANGULAR_RENAME_NG_ONINIT_TO_NG_AFTERCONTENTINIT_PLUGIN = () => ({
   code: {
     post: (code) => {
       if (code?.includes('blocks-wrapper, BlocksWrapper')) {
-        const mergedInputsCode = code.match(/this.mergedInputs_.* = \{.*\};/s);
-        code = code.replace(
-          /}\n\s*$/,
-          `
-            ngOnChanges() {
-              ${mergedInputsCode}
-            }
-          }
-          `
-        );
+        code = code.replace('ngOnInit', 'ngAfterContentInit');
       }
       return code;
     },
@@ -495,67 +544,12 @@ const ANGULAR_INITIALIZE_PROP_ON_NG_ONINIT = () => ({
   code: {
     post: (code) => {
       if (code.includes('content-component, ContentComponent')) {
-        const registeredComponentsCode = code.match(
-          /registeredComponents = \[.*\);/s
-        );
-        const builderContextSignalCode = code.match(
-          /builderContextSignal = \{.*\};/s
-        );
-
-        // add them to ngOnInit
-        code = code.replace(
-          // last } before the end of the class
-          /}\n\s*$/,
-          `
-            ngOnInit() {
-              this.${registeredComponentsCode}
-              this.${builderContextSignalCode}
-            }
-          }
-          `
-        );
-
         code = code.replaceAll(
           'this.contentSetState',
           'this.contentSetState.bind(this)'
         );
       }
-      if (code.includes('content-styles, ContentStyles')) {
-        const injectedStyles = code.match(/injectedStyles = `.*;/s);
-        code = code.replace(
-          /}\n\s*$/,
-          `
-            ngOnInit() {
-              this.${injectedStyles}
-            }
-          }
-          `
-        );
-      }
       return code;
-    },
-  },
-});
-
-const ANGULAR_FIX_AB_TESTS_INITIALIZATION = () => ({
-  json: {
-    pre: (json) => {
-      if (json.name === 'ContentVariants') {
-        if (json.state['defaultContent']) {
-          json.state['getdefaultContent'] = {
-            code: json.state['defaultContent'].code.replace('get ', 'get'),
-            type: 'method',
-          };
-          json.state['defaultContent'] = {
-            code: 'null',
-            type: 'property',
-          };
-
-          json.hooks.onUpdate.push({
-            code: `if (props.content) { state.defaultContent = state.getdefaultContent(); }`,
-          });
-        }
-      }
     },
   },
 });
@@ -593,14 +587,15 @@ module.exports = {
       state: 'class-properties',
       plugins: [
         ANGULAR_FIX_CIRCULAR_DEPENDENCIES_OF_COMPONENTS,
+        ANGULAR_FIX_SYMBOL_BUILDER_ID_ATTRIBUTE,
         ANGULAR_OVERRIDE_COMPONENT_REF_PLUGIN,
         ANGULAR_COMPONENT_NAMES_HAVING_HTML_TAG_NAMES,
         INJECT_ENABLE_EDITOR_ON_EVENT_HOOKS_PLUGIN,
         ANGULAR_INITIALIZE_PROP_ON_NG_ONINIT,
         ANGULAR_BIND_THIS_FOR_WINDOW_EVENTS,
-        ANGULAR_BLOCKS_WRAPPER_MERGED_INPUT_REACTIVITY_PLUGIN,
-        ANGULAR_FIX_AB_TESTS_INITIALIZATION,
         ANGULAR_WRAP_SYMBOLS_FETCH_AROUND_CHANGES_DEPS,
+        ANGULAR_RENAME_NG_ONINIT_TO_NG_AFTERCONTENTINIT_PLUGIN,
+        ANGULAR_ADD_UNUSED_PROP_TYPES,
       ],
     },
     solid: {
@@ -760,6 +755,13 @@ module.exports = {
                */
               if (json.name === 'CustomCode') {
                 json.refs.elementRef.typeParameter = 'any';
+              }
+
+              /**
+               * Fix component name as `Button` is imported from react-native
+               */
+              if (json.name === 'Button') {
+                json.name = 'BuilderButton';
               }
             },
           },

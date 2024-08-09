@@ -1,5 +1,18 @@
 # Builder.io React Native SDK Changelog (@builder.io/sdk-react-native)
 
+## 2.0.3
+
+### Patch Changes
+
+- 11e118c: Fix: serialize all functions within registered component info.
+
+## 2.0.2
+
+### Patch Changes
+
+- 4ee499e: Fix: Image block: remove redundant `srcset` for SVG images
+- 14da62f: Fix: restrict custom components to the models that get passed in `models`
+
 ## 2.0.1
 
 ### Patch Changes

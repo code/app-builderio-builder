@@ -1,5 +1,34 @@
 # @builder.io/react
 
+## 4.0.4
+
+### Patch Changes
+
+- b7c00cf: Fix SSR hydration issues with non-hover animated builder blocks
+- Updated dependencies [b7c00cf]
+  - @builder.io/sdk@2.2.9
+
+## 4.0.3
+
+### Patch Changes
+
+- 11e118c: Fix: serialize all functions within registered component info.
+- Updated dependencies [11e118c]
+  - @builder.io/sdk@2.2.8
+
+## 4.0.2
+
+### Patch Changes
+
+- Updated dependencies [b965695]
+  - @builder.io/sdk@2.2.7
+
+## 4.0.1
+
+### Patch Changes
+
+- 4ee499e: Fix: Image block: remove redundant `srcset` for SVG images
+
 ## 4.0.0
 
 ### Major Changes
